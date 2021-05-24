@@ -117,12 +117,12 @@ Once both connectors are installed and configured, you can track the activity of
 
 
 First we check if the connecto DataGen is sending messages and if Kafka is receiving.
-![alt text](./kafka-confluent/docs/Kafka 001.PNG)
+![alt text](kafka-confluent/docs/Kafka%20001.PNG)
 
 Second in Consumers we can see the load and status of our Redis Connector.
-![alt text](./kafka-confluent/docs/Kafka 002.PNG)
+![alt text](kafka-confluent/docs/Kafka%20002.PNG)
 
 Third within Redis we can check the data sended form Kafka.
-![alt text](./kafka-confluent/docs/Kafka 003.PNG)
+![alt text](kafka-confluent/docs/Kafka%20003.PNG)
 
 
