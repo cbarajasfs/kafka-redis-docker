@@ -36,6 +36,7 @@ services:
     hostname: redis
     ports:
       - "6379:6379"
+      
   control-center:
     image: confluentinc/cp-enterprise-control-center:5.3.1
     hostname: control-center
