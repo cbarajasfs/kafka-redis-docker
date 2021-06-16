@@ -1,0 +1,117 @@
+
+version: '3'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.1.1
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker:
+    image: confluentinc/cp-kafka:6.1.1
+    hostname: broker
+    container_name: broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  ksqldb-server:
+    image: confluentinc/ksqldb-server:0.18.0
+    hostname: ksqldb-server
+    container_name: ksqldb-server
+    depends_on:
+      - broker
+    ports:
+      - "8088:8088"
+    environment:
+      KSQL_LISTENERS: http://0.0.0.0:8088/
+      KSQL_BOOTSTRAP_SERVERS: broker:9092
+      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: "true"
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
+
+  ksqldb-cli:
+    image: confluentinc/ksqldb-cli:0.18.0
+    container_name: ksqldb-cli
+    depends_on:
+      - broker
+      - ksqldb-server
+    entrypoint: /bin/sh
+    tty: true
+
+  redis:
+    image: redis
+    container_name: my-redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:5.1.1
+    hostname: kafka-setup
+    container_name: kafka-setup
+    depends_on:
+      - broker
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+      cub kafka-ready -z zookeeper:2181 1 30 && \
+      kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-config-storage --config cleanup.policy=compact && \
+      kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-offset-storage --config cleanup.policy=compact && \
+      kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-status-storage --config cleanup.policy=compact && \
+      kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic to-redis'"
+    environment:
+      KAFKA_BROKER_ID: ignored
+      KAFKA_ZOOKEEPER_CONNECT: ignored
+    
+  connect:
+    build: ./connect
+    container_name: connect
+    hostname: connect
+    ports:
+      - "8089:8089"
+    depends_on:
+      - broker
+      - kafka-setup
+    environment:
+      CONNECT_REST_PORT: "8089" 
+      CONNECT_BOOTSTRAP_SERVERS: broker:9092
+      CONNECT_GROUP_ID: "connect-group" 
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect-config-storage" 
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offset-storage" 
+      CONNECT_STATUS_STORAGE_TOPIC: "connect-status-storage" 
+
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter" 
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.converters.ByteArrayConverter" 
+      
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter" 
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      
+      CONNECT_PLUGIN_PATH: /usr/share/java/,/usr/share/confluent-hub-components/
+      CONNECT_REST_ADVERTISED_HOST_NAME: "connect" 
+      CONNECT_REST_HOST_NAME: "connect" 
+      
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1 
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1 
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+      
+      CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-5.1.1.jar
+      
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"

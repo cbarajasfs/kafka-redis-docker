@@ -1,0 +1,9 @@
+{
+    "name": "redis-sink",
+    "config": {
+      "connector.class": "com.finsol.Sink.MySinkConnector",
+      "tasks.max": "1",
+      "topics":"topic1,topic2",
+      "redis.hosts":"redis:6379"
+    }
+}
